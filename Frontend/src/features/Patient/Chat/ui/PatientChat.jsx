@@ -7,7 +7,7 @@ import './PatientChat.scss';
 
 // These are SYMPTOMS (what the patient feels), which map safely to the 8 Major Diseases in the backend AI prompt.
 const SYMPTOMS_DICT = {
-  'English': ["Crushing Chest Pain", "Sudden Weakness/Speech Loss", "No Pulse/Collapsed", "Severe Breathing Issue", "Deep Cut/Heavy Bleeding", "Worst Headache Ever", "Convulsions/Shaking", "Animal/Snake Bite"],
+  'English': ["Severe Chest Pain", "Sudden Weakness/Speech Loss", "No Pulse/Collapsed", "Severe Breathing Issue", "Deep Cut/Heavy Bleeding", "Severe Headache", "Facing uncontrolled movements", "Snake Bite"],
   'Hindi': ["सीने में भारी दर्द", "अचानक कमजोरी/बोलने में दिक्कत", "नाड़ी नहीं/बेहोश", "सांस लेने में गंभीर समस्या", "गहरा घाव/भारी खून", "भयानक सिरदर्द", "दौरे/कांपना", "सांप/जानवर का काटना"],
   'Kannada': ["ತೀವ್ರ ಎದೆ ನೋವು", "ಹಠಾತ್ ದೌರ್ಬಲ್ಯ/ಮಾತು ನಿಲ್ಲುವಿಕೆ", "ನಾಡಿ ಇಲ್ಲ/ಕುಸಿತ", "ಉಸಿರಾಟದ ತೊಂದರೆ", "ಆಳವಾದ ಗಾಯ/ರಕ್ತಸ್ರಾವ", "ತೀವ್ರ ತಲೆನೋವು", "ಸೆಳೆತ/ನಡುಕ", "ಹಾವು/ಪ್ರಾಣಿ ಕಡಿತ"],
   'Tamil': ["கடுமையான நெஞ்சு வலி", "திடீர் பலவீனம்/பேச்சு இழப்பு", "நாடி இல்லை/மயக்கம்", "கடுமையான மூச்சுத்திணறல்", "ஆழமான வெட்டு/இரத்தப்போக்கு", "கடுமையான தலைவலி", "வலிப்பு/நடுக்கம்", "பாம்பு/விலங்கு கடி"],

@@ -23,7 +23,6 @@ const HospitalDashboard = () => {
             <div key={req.id} style={{ background: 'white', padding: '20px', borderRadius: '12px', borderLeft: '6px solid #d32f2f', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #eee', paddingBottom: '10px', marginBottom: '15px' }}>
                 <h3 style={{ color: '#d32f2f', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><AlertTriangle size={20}/> {req.predictedDisease}</h3>
-                <span style={{ background: '#fee2e2', color: '#b91c1c', padding: '4px 8px', borderRadius: '5px', fontWeight: 'bold', fontSize: '12px' }}>ETA: {req.eta}</span>
               </div>
               
               <div style={{ marginBottom: '20px' }}>
