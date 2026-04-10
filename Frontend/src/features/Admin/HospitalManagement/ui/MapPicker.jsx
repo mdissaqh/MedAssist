@@ -19,7 +19,7 @@ const LocationMarker = ({ position, setPosition }) => {
 
 const MapPicker = ({ location, setLocation }) => {
   // Default to Cambridge coordinates if no location is set
-  const defaultCenter = [52.2053, 0.1218]; 
+  const defaultCenter = [12.9716, 77.5946]; 
 
   return (
     <div style={{ height: '300px', width: '100%', borderRadius: '8px', overflow: 'hidden', marginTop: '1rem' }}>

@@ -7,6 +7,7 @@ import HospitalManager from './features/Admin/HospitalManagement/ui/HospitalMana
 import ProtectedRoute from './components/ProtectedRoute';
 import HospitalDashboard from './features/Hospital/Dashboard/ui/HospitalDashboard';
 import PatientChat from './features/Patient/Chat/ui/PatientChat';
+import HospitalLayout from './features/Hospital/Dashboard/ui/HospitalLayout';
 
 function App() {
   return (
@@ -46,6 +47,7 @@ function App() {
 
         <Route path="/patient/dashboard" element={<h2>Patient Dashboard</h2>} />
         <Route path="/hospital/dashboard" element={<h2>Hospital Dashboard</h2>} />
+        <Route path="/hospital/dashboard" element={<ProtectedRoute allowedRole="hospital"><HospitalLayout /></ProtectedRoute>} />
       </Routes>
     </Router>
   );

@@ -2,91 +2,101 @@ const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
 const { HumanMessage, SystemMessage, AIMessage } = require('@langchain/core/messages');
 const Emergency = require('../models/Emergency');
 const Patient = require('../models/Patient');
+const Hospital = require('../models/Hospital'); // We need this to map the hospital!
 
-// Initialize Gemini Pro via LangChain
 const chatModel = new ChatGoogleGenerativeAI({
-  model: "gemini-3.1-flash-lite-preview", // Fast and great for reasoning
+  model: "gemini-3.1-flash-lite-preview",
   maxOutputTokens: 2048,
-  temperature: 0.2, // Keep it low so the medical advice is focused, not creative
+  temperature: 0.1, // Even lower temperature for strict categorization
   apiKey: process.env.GOOGLE_API_KEY
 });
 
 exports.handlePatientChat = async (req, res) => {
   try {
-    const { patientId, message, history, location } = req.body;
+    // NEW: Accept language from frontend
+    const { patientId, message, history, location, language } = req.body; 
 
     const patient = await Patient.findById(patientId);
     if (!patient) return res.status(404).json({ error: "Patient not found" });
 
-    // 1. STRICER SYSTEM PROMPT
+    const selectedLanguage = language || 'English';
+
+    // 1. THE BILINGUAL SYSTEM PROMPT
     const systemPrompt = `
       You are MedAssist, an emergency medical triage AI.
-      You are speaking with a patient. 
-      Patient Info: Mobile: ${patient.mobileNumber}, Language: ${patient.preferredLanguage}.
+      The patient is communicating in: ${selectedLanguage}.
       
-      YOUR GOAL: Assess if their symptoms are CRITICAL (requires immediate ambulance) or NON_CRITICAL.
+      YOUR GOAL: Assess if symptoms are CRITICAL or NON_CRITICAL.
       
       RULES:
-      1. Reply in the patient's preferred language or the language they type in.
-      2. Keep responses short and empathetic.
-      3. If they report symptoms of heart attack, stroke, severe trauma, breathing failure, etc., classify as CRITICAL.
-      4. YOU MUST OUTPUT STRICTLY VALID JSON. DO NOT OUTPUT ANY OTHER TEXT. NO GREETINGS. NO MARKDOWN.
+      1. You MUST translate and provide your "reply" and "immediate_actions" in ${selectedLanguage}.
+      2. You MUST categorize the emergency into EXACTLY ONE of these English terms for the "disease" field: 
+         ['Heart Attack', 'Stroke', 'Cardiac Arrest', 'Severe Asthma Attack', 'Severe External Bleeding', 'Brain Hemorrhage', 'Seizure', 'Snake Bite', 'Other']. DO NOT translate the "disease" field.
+      3. YOU MUST OUTPUT STRICTLY VALID JSON. NO OTHER TEXT.
       
-      OUTPUT FORMAT (Always follow this exactly):
-      {"reply": "your message to the patient here", "severity": "CRITICAL" | "NON_CRITICAL", "disease": "Predicted condition or 'Unknown'"}
+      OUTPUT FORMAT:
+      {
+        "reply": "Your empathetic response in ${selectedLanguage}", 
+        "severity": "CRITICAL" | "NON_CRITICAL", 
+        "disease": "Must be the exact English term from the list",
+        "immediate_actions": ["Action 1 in ${selectedLanguage}", "Action 2 in ${selectedLanguage}"]
+      }
     `;
 
     const messages = [new SystemMessage(systemPrompt)];
-    
-    if (history && history.length > 0) {
+    if (history) {
       history.forEach(msg => {
-        if (msg.role === 'user') messages.push(new HumanMessage(msg.content));
-        if (msg.role === 'ai') messages.push(new AIMessage(msg.content));
+        messages.push(msg.role === 'user' ? new HumanMessage(msg.content) : new AIMessage(msg.content));
       });
     }
-    
     messages.push(new HumanMessage(message));
 
-    // Call Gemini
     const response = await chatModel.invoke(messages);
     
-    // 2. CLEVER JSON EXTRACTION
     let aiData;
     try {
-      // Find exactly where the { starts and the } ends, ignoring all text outside it!
       const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-      
-      if (jsonMatch) {
-        aiData = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error("No JSON object found in response");
-      }
+      aiData = JSON.parse(jsonMatch[0]);
     } catch (parseError) {
-      console.error("AI didn't follow rules. Raw Response:", response.content);
-      // 3. FALLBACK SAFETY NET (So the app never crashes)
-      aiData = {
-        reply: "I am having trouble processing that. If you are experiencing a severe medical emergency, please click a symptom button or describe it clearly.",
-        severity: "NON_CRITICAL",
-        disease: "Unknown"
-      };
+      aiData = { reply: "Error processing. Please call emergency services directly.", severity: "NON_CRITICAL", disease: "Other", immediate_actions: [] };
     }
 
-    // Check for Critical Trigger
     let isEmergencyDispatched = false;
+    let assignedHospitalName = "Searching...";
     
+    // 2. THE SMART DISPATCH LOGIC
     if (aiData.severity === 'CRITICAL') {
       isEmergencyDispatched = true;
       
+      // Find a hospital that treats this EXACT disease, has it turned ON, and has an ambulance!
+      const availableHospital = await Hospital.findOne({
+        'specialties': { 
+          $elemMatch: { disease: aiData.disease, isAvailable: true } 
+        },
+        availableAmbulances: { $gt: 0 }
+      });
+
+      let hospitalIdToAssign = null;
+      if (availableHospital) {
+        hospitalIdToAssign = availableHospital._id;
+        assignedHospitalName = availableHospital.name;
+        
+        // Decrease ambulance count by 1 (Atomic update)
+        availableHospital.availableAmbulances -= 1;
+        await availableHospital.save();
+      }
+
       const newEmergency = await Emergency.create({
         patient: patient._id,
+        assignedHospital: hospitalIdToAssign,
         location: location || { lat: 0, lng: 0 },
         symptomsReported: message,
         aiPredictedDisease: aiData.disease,
         severity: 'CRITICAL',
-        status: 'SEARCHING_AMBULANCE',
-        aiChatTranscript: history
+        status: 'DISPATCHED'
       });
 
+      // Notify the specific hospital
       const io = req.app.get('socketio');
       io.emit('new_emergency', {
         id: newEmergency._id,
@@ -98,14 +108,16 @@ exports.handlePatientChat = async (req, res) => {
       });
     }
 
+    // 3. Send data back to the Patient UI
     res.json({
       reply: aiData.reply,
       isEmergencyDispatched,
-      disease: aiData.disease
+      disease: aiData.disease,
+      immediate_actions: aiData.immediate_actions || [],
+      hospitalName: assignedHospitalName
     });
 
   } catch (error) {
-    console.error("AI Chat Error:", error);
     res.status(500).json({ error: "Failed to process chat" });
   }
 };

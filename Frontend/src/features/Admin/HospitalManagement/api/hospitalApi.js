@@ -10,3 +10,8 @@ export const editHospitalApi = async (id, hospitalData) => {
   const response = await axiosInstance.put(`/admin/hospitals/${id}`, hospitalData);
   return response.data;
 };
+
+export const searchHospitalsApi = async (query) => {
+  const response = await axiosInstance.get(`/admin/hospitals/search?query=${query}`);
+  return response.data;
+};

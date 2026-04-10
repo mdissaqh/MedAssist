@@ -1,13 +1,16 @@
 const express = require('express');
 const router = express.Router();
 
-// FIX: Make sure searchHospitals is explicitly imported here!
 const { addHospital, editHospital, searchHospitals } = require('../controllers/adminController');
 const { protect, adminOnly } = require('../middlewares/authMiddleware');
 
-// The GET route MUST be above the PUT /:id route
+// GET route for searching hospitals
 router.get('/hospitals/search', protect, adminOnly, searchHospitals);
+
+// POST route for adding a hospital
 router.post('/hospitals', protect, adminOnly, addHospital);
+
+// PUT route for editing a hospital
 router.put('/hospitals/:id', protect, adminOnly, editHospital);
 
 module.exports = router;

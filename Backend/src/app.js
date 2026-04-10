@@ -14,6 +14,7 @@ app.use(express.json()); // Parse incoming JSON payloads
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/hospital', require('./routes/hospitalRoutes'));
 
 // Base route for testing
 app.get('/', (req, res) => {
