@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import LiveAmbulanceMap from './LiveAmbulanceMap';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePatientChat } from '../hooks/usePatientChat';
 import { Send, MapPin, AlertCircle, ShieldAlert, Globe } from 'lucide-react';
@@ -64,13 +65,20 @@ const PatientChat = () => {
         {/* 2. SUCCESS MESSAGE IF HOSPITAL IS ASSIGNED */}
         {/* ========================================== */}
         {isAssigned && (
-          <>
+          <div style={{ width: '100%', maxWidth: '600px' }}>
             <h2>AMBULANCE DISPATCHED</h2>
-            <div style={{ background: '#dcfce7', color: '#166534', padding: '15px', borderRadius: '12px', margin: '15px 0', textAlign: 'center', width: '90%', maxWidth: '400px', border: '2px solid #22c55e' }}>
+            <div style={{ background: '#dcfce7', color: '#166534', padding: '15px', borderRadius: '12px', margin: '15px auto', textAlign: 'center', border: '2px solid #22c55e' }}>
               <h3 style={{ margin: 0, fontSize: '1.1rem' }}>✅ Hospital Assigned:</h3>
               <h2 style={{ margin: '5px 0 0 0', fontSize: '1.5rem' }}>{assignedHospitalName}</h2>
             </div>
-          </>
+            
+            {/* NEW: THE LIVE TRACKING MAP! */}
+            <LiveAmbulanceMap 
+              hospitalName={assignedHospitalName} 
+              patientLat={location?.lat} 
+              patientLng={location?.lng} 
+            />
+          </div>
         )}
 
         <p className="disease-alert" style={{ marginTop: isAssigned ? '0' : '10px' }}>Code: {predictedDisease}</p>
