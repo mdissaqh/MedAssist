@@ -1,25 +1,30 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+
+// Public Views
 import PatientLogin from './features/Patient/Login/ui/PatientLogin';
 import AdminLogin from './features/Admin/Login/ui/AdminLogin';
 import HospitalLogin from './features/Hospital/Login/ui/HospitalLogin';
-import HospitalManager from './features/Admin/HospitalManagement/ui/HospitalManager';
+
+// Protected Views
 import ProtectedRoute from './components/ProtectedRoute';
-import HospitalDashboard from './features/Hospital/Dashboard/ui/HospitalDashboard';
+import HospitalManager from './features/Admin/HospitalManagement/ui/HospitalManager';
 import PatientChat from './features/Patient/Chat/ui/PatientChat';
-import HospitalLayout from './features/Hospital/Dashboard/ui/HospitalLayout';
+import HospitalLayout from './features/Hospital/Dashboard/ui/HospitalLayout.jsx';
 
 function App() {
   return (
     <Router>
       <Toaster position="top-right" />
       <Routes>
-        {/* Public Routes */}
+        {/* ================= PUBLIC ROUTES ================= */}
         <Route path="/" element={<PatientLogin />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/hospital/login" element={<HospitalLogin />} />
 
-        {/* Protected Routes! */}
+        {/* ================= PROTECTED ROUTES ================= */}
+        
+        {/* 1. Admin Route */}
         <Route
           path="/admin/dashboard"
           element={
@@ -28,14 +33,8 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/hospital/dashboard"
-          element={
-            <ProtectedRoute allowedRole="hospital">
-              <HospitalDashboard />
-            </ProtectedRoute>
-          }
-        />
+        
+        {/* 2. Patient Route */}
         <Route
           path="/patient/dashboard"
           element={
@@ -45,9 +44,16 @@ function App() {
           }
         />
 
-        <Route path="/patient/dashboard" element={<h2>Patient Dashboard</h2>} />
-        <Route path="/hospital/dashboard" element={<h2>Hospital Dashboard</h2>} />
-        <Route path="/hospital/dashboard" element={<ProtectedRoute allowedRole="hospital"><HospitalLayout /></ProtectedRoute>} />
+        {/* 3. Hospital Route (Using your new Sidebar Layout) */}
+        <Route 
+          path="/hospital/dashboard" 
+          element={
+            <ProtectedRoute allowedRole="hospital">
+              <HospitalLayout /> 
+            </ProtectedRoute>
+          } 
+        />
+
       </Routes>
     </Router>
   );

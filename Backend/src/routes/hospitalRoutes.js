@@ -1,16 +1,13 @@
 const express = require('express');
 const router = express.Router();
+// IMPORT BOTH FUNCTIONS NOW:
+const { updateResources, getHospitalProfile } = require('../controllers/hospitalController');
+const { protect } = require('../middlewares/authMiddleware');
 
-const { addHospital, editHospital, searchHospitals } = require('../controllers/adminController');
-const { protect, adminOnly } = require('../middlewares/authMiddleware');
+// Add the GET route to fetch data
+router.get('/profile', protect, getHospitalProfile);
 
-// GET route for searching hospitals
-router.get('/hospitals/search', protect, adminOnly, searchHospitals);
-
-// POST route for adding a hospital
-router.post('/hospitals', protect, adminOnly, addHospital);
-
-// PUT route for editing a hospital
-router.put('/hospitals/:id', protect, adminOnly, editHospital);
+// Your existing PUT route
+router.put('/resources', protect, updateResources);
 
 module.exports = router;

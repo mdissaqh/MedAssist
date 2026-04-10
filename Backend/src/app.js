@@ -3,6 +3,7 @@ const cors = require('cors');
 const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const aiRoutes = require('./routes/aiRoutes');
+const hospitalRoutes = require('./routes/hospitalRoutes');
 
 const app = express();
 
@@ -15,6 +16,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/hospital', require('./routes/hospitalRoutes'));
+app.use('/api/hospital', hospitalRoutes);
 
 // Base route for testing
 app.get('/', (req, res) => {
