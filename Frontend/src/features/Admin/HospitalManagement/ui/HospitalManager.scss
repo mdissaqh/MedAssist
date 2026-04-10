@@ -1,0 +1,76 @@
+.hospital-manager-container {
+  display: flex;
+  justify-content: center;
+  padding: 3rem 1rem;
+  background-color: #f8fafc;
+  min-height: 100vh;
+
+  .manager-card {
+    background: white;
+    padding: 2.5rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+    width: 100%;
+    max-width: 700px;
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 0.5rem;
+
+      h2 { color: #0f172a; margin: 0; }
+    }
+
+    p { color: #64748b; margin-bottom: 2rem; }
+
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+      }
+
+      input {
+        padding: 0.85rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        font-size: 1rem;
+        transition: border-color 0.2s;
+
+        &:focus { outline: none; border-color: #1565c0; }
+      }
+
+      .full-width { width: 100%; box-sizing: border-box; }
+
+      .map-section {
+        margin-top: 1rem;
+        h4 { display: flex; align-items: center; gap: 8px; color: #334155; margin: 0; }
+      }
+
+      .submit-btn {
+        background-color: #1565c0;
+        color: white;
+        padding: 1rem;
+        border: none;
+        border-radius: 6px;
+        font-size: 1.1rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background 0.3s;
+        margin-top: 1rem;
+
+        &:hover { background-color: #0d47a1; }
+        &:disabled { background-color: #94a3b8; cursor: not-allowed; }
+      }
+    }
+  }
+
+  @media (max-width: 600px) {
+    .manager-card .form-grid { grid-template-columns: 1fr; }
+  }
+}
