@@ -1,11 +1,11 @@
 const dotenv = require('dotenv');
+dotenv.config();
 const connectDB = require('./src/config/db');
 const app = require('./src/app');
 const http = require('http'); // Built-in Node module
 const { Server } = require('socket.io'); // Import Socket.io
 
-// Load environment variables
-dotenv.config();
+
 
 // Connect to MongoDB
 connectDB();

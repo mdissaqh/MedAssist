@@ -4,8 +4,9 @@ import PatientLogin from './features/Patient/Login/ui/PatientLogin';
 import AdminLogin from './features/Admin/Login/ui/AdminLogin';
 import HospitalLogin from './features/Hospital/Login/ui/HospitalLogin';
 import HospitalManager from './features/Admin/HospitalManagement/ui/HospitalManager';
-import ProtectedRoute from './components/ProtectedRoute'; 
+import ProtectedRoute from './components/ProtectedRoute';
 import HospitalDashboard from './features/Hospital/Dashboard/ui/HospitalDashboard';
+import PatientChat from './features/Patient/Chat/ui/PatientChat';
 
 function App() {
   return (
@@ -31,6 +32,14 @@ function App() {
           element={
             <ProtectedRoute allowedRole="hospital">
               <HospitalDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/patient/dashboard"
+          element={
+            <ProtectedRoute allowedRole="patient">
+              <PatientChat />
             </ProtectedRoute>
           }
         />
