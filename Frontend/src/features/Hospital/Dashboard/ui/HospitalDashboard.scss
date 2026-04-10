@@ -1,0 +1,77 @@
+.hospital-dashboard {
+  padding: 2rem;
+  background-color: #f1f5f9;
+  min-height: 100vh;
+
+  .dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+
+    h2 { color: #0f172a; margin: 0; }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #dcfce7;
+      color: #166534;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-weight: bold;
+
+      .pulse-dot {
+        width: 10px; height: 10px;
+        background-color: #22c55e;
+        border-radius: 50%;
+        animation: pulse 1.5s infinite;
+      }
+    }
+  }
+
+  .empty-state {
+    text-align: center; color: #64748b; font-size: 1.2rem; padding: 4rem 0;
+  }
+
+  .emergency-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .emergency-card {
+    background: white; border-radius: 12px; padding: 1.5rem;
+    box-shadow: 0 10px 25px rgba(211, 47, 47, 0.15); // Red glow
+    border-left: 6px solid #d32f2f;
+    animation: slideIn 0.4s ease-out;
+
+    .card-header {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      margin-bottom: 1rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 1rem;
+
+      h3 { display: flex; align-items: center; gap: 8px; color: #d32f2f; margin: 0; font-size: 1.2rem; }
+      
+      .eta-badge {
+        display: flex; align-items: center; gap: 5px; background: #fee2e2; color: #b91c1c;
+        padding: 4px 10px; border-radius: 8px; font-weight: bold; font-size: 0.9rem;
+      }
+    }
+
+    .card-body {
+      display: flex; flex-direction: column; gap: 0.8rem; margin-bottom: 1.5rem;
+      p { display: flex; align-items: center; gap: 10px; margin: 0; color: #334155; }
+      .symptoms { background: #f8fafc; padding: 10px; border-radius: 6px; }
+    }
+
+    .arrive-btn {
+      width: 100%; background: #0ea5e9; color: white; border: none; padding: 1rem;
+      border-radius: 6px; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: 0.2s;
+      
+      &:hover { background: #0284c7; }
+    }
+  }
+
+  @keyframes pulse { 0% { transform: scale(0.95); opacity: 0.5; } 50% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(0.95); opacity: 0.5; } }
+  @keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+}
