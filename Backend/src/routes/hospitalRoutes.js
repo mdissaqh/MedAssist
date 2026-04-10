@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
-// IMPORT BOTH FUNCTIONS NOW:
-const { updateResources, getHospitalProfile } = require('../controllers/hospitalController');
+// Import all 4 functions!
+const { updateResources, getHospitalProfile, getActiveEmergencies, resolveEmergency } = require('../controllers/hospitalController');
 const { protect } = require('../middlewares/authMiddleware');
 
-// Add the GET route to fetch data
 router.get('/profile', protect, getHospitalProfile);
-
-// Your existing PUT route
+router.get('/emergencies', protect, getActiveEmergencies);
 router.put('/resources', protect, updateResources);
+// NEW: The resolve route
+router.put('/emergencies/:id/resolve', protect, resolveEmergency); 
 
 module.exports = router;

@@ -17,21 +17,63 @@ const PatientChat = () => {
   const [selectedLanguage, setSelectedLanguage] = useState('English');
   // Pass the language into the hook so the greeting translates instantly
   const {
-    messages, inputValue, setInputValue, isLoading, sendMessage, messagesEndRef, isDispatched, predictedDisease, immediateActions
+    messages, inputValue, setInputValue, isLoading, sendMessage, messagesEndRef, 
+    isDispatched, predictedDisease, immediateActions, 
+    assignedHospitalName
   } = usePatientChat(selectedLanguage);
-
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') sendMessage(inputValue, selectedLanguage);
   };
 
+  // --- EMERGENCY TRIGGERED SCREEN ---
+  // --- EMERGENCY TRIGGERED SCREEN ---
   if (isDispatched) {
+    // Check if a hospital was actually assigned
+    const isAssigned = Boolean(assignedHospitalName);
+
     return (
-      <motion.div className="dispatch-screen" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
-        <motion.div className="pulse-ring" animate={{ scale: [1, 1.5, 1], opacity: [0.8, 0, 0.8] }} transition={{ repeat: Infinity, duration: 2 }}>
+      <motion.div 
+        className="dispatch-screen"
+        initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+      >
+        <motion.div 
+          className="pulse-ring"
+          animate={{ scale: [1, 1.5, 1], opacity: [0.8, 0, 0.8] }} transition={{ repeat: Infinity, duration: 2 }}
+        >
           <ShieldAlert size={80} color="white" />
         </motion.div>
-        <h2>EMERGENCY TRIGGERED</h2>
-        <p className="disease-alert">Code: {predictedDisease}</p>
+        
+        {/* ========================================== */}
+        {/* 1. MASSIVE WARNING IF NO HOSPITAL IS FOUND */}
+        {/* ========================================== */}
+        {!isAssigned && (
+          <div style={{ background: '#fef08a', color: '#991b1b', padding: '20px', borderRadius: '12px', margin: '20px 0', border: '4px solid #facc15', textAlign: 'center', width: '90%', maxWidth: '450px', boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+              ⚠️ NETWORK UNAVAILABLE
+            </h3>
+            <p style={{ margin: '15px 0', fontWeight: 'bold', fontSize: '1.1rem' }}>
+              No hospital with '<span style={{textDecoration: 'underline'}}>{predictedDisease}</span>' services is currently available in your area.
+            </p>
+            <h2 style={{ margin: 0, fontSize: '1.6rem', color: '#dc2626', background: 'white', padding: '10px', borderRadius: '8px', border: '2px solid #dc2626' }}>
+              PLEASE CALL LOCAL EMERGENCY SERVICES IMMEDIATELY!
+            </h2>
+          </div>
+        )}
+
+        {/* ========================================== */}
+        {/* 2. SUCCESS MESSAGE IF HOSPITAL IS ASSIGNED */}
+        {/* ========================================== */}
+        {isAssigned && (
+          <>
+            <h2>AMBULANCE DISPATCHED</h2>
+            <div style={{ background: '#dcfce7', color: '#166534', padding: '15px', borderRadius: '12px', margin: '15px 0', textAlign: 'center', width: '90%', maxWidth: '400px', border: '2px solid #22c55e' }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem' }}>✅ Hospital Assigned:</h3>
+              <h2 style={{ margin: '5px 0 0 0', fontSize: '1.5rem' }}>{assignedHospitalName}</h2>
+            </div>
+          </>
+        )}
+
+        <p className="disease-alert" style={{ marginTop: isAssigned ? '0' : '10px' }}>Code: {predictedDisease}</p>
         
         <div className="instructions">
           <h3>Immediate Actions:</h3>
@@ -39,19 +81,11 @@ const PatientChat = () => {
             {immediateActions && immediateActions.length > 0 ? (
               immediateActions.map((action, idx) => <li key={idx}>{action}</li>)
             ) : (
-              <li>Help is on the way. Please stay calm.</li>
+              <li>Please stay as calm as possible.</li>
             )}
           </ul>
         </div>
         
-        {/* NEW: Only say assigned if it actually is! */}
-        <div style={{ marginTop: '2rem', padding: '10px', background: 'white', color: 'black', borderRadius: '8px', fontWeight: 'bold' }}>
-           {assignedHospitalName ? (
-             <p>🚑 Ambulance Assigned from: {assignedHospitalName}</p>
-           ) : (
-             <p>⚠️ Alerting network... Searching for available ambulance.</p>
-           )}
-        </div>
       </motion.div>
     );
   }

@@ -1,46 +1,59 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
+import axiosInstance from '../../../../api/axiosInstance';
 import toast from 'react-hot-toast';
+
+const SOCKET_SERVER_URL = 'http://localhost:5000'; 
 
 export const useEmergencySocket = () => {
   const [emergencies, setEmergencies] = useState([]);
-  const audioRef = useRef(null);
 
+  // Fetch from DB on load
   useEffect(() => {
-    // Initialize the audio object pointing to the public folder
-    audioRef.current = new Audio('/alarm.mp3');
+    const fetchExistingEmergencies = async () => {
+      try {
+        const response = await axiosInstance.get('/hospital/emergencies');
+        setEmergencies(response.data);
+      } catch (error) {
+        console.error("Failed to load existing emergencies");
+      }
+    };
+    fetchExistingEmergencies();
+  }, []);
 
-    // Connect to Backend WebSocket
-    const socket = io('http://127.0.0.1:5000');
+  // Listen for Live Updates
+  useEffect(() => {
+    const socket = io(SOCKET_SERVER_URL);
 
-    socket.on('connect', () => {
-      console.log('Connected to MedAssist Emergency Network');
+    socket.on('new_emergency', (newRequest) => {
+      // 1. PLAY THE ALARM SOUND
+      try {
+        // This looks inside your Frontend/public folder for alarm.mp3
+        const alarm = new Audio('/alarm.mp3'); 
+        alarm.play().catch((err) => console.log("Browser blocked auto-play. User must interact with the page first.", err));
+      } catch (e) {
+        console.error("Audio error", e);
+      }
+
+      toast.error(`🚨 NEW CRITICAL PATIENT: ${newRequest.predictedDisease}`, { duration: 6000 });
+      setEmergencies((prev) => [newRequest, ...prev]);
     });
 
-    // LISTEN FOR EMERGENCIES!
-    socket.on('new_emergency', (emergencyData) => {
-      // 1. Play the siren sound
-      audioRef.current.play().catch(e => console.log("Browser blocked autoplay. User must click first.", e));
-      
-      // 2. Show a red toast popup
-      toast.error(`🚨 CODE RED: ${emergencyData.predictedDisease}!`, {
-        duration: 8000,
-        style: { background: '#d32f2f', color: '#fff', fontWeight: 'bold' }
-      });
-
-      // 3. Add to the top of our list
-      setEmergencies((prev) => [emergencyData, ...prev]);
-    });
-
-    // Cleanup on unmount
     return () => socket.disconnect();
   }, []);
 
-  // Function to mark a patient as arrived
-  const markAsArrived = (id) => {
-    setEmergencies(prev => prev.filter(req => req.id !== id));
-    toast.success("Patient arrival confirmed. Ambulance freed!");
-    // In the future, we will make an API call here to update the DB & free up the ambulance.
+  // 2. PERMANENTLY RESOLVE THE PATIENT
+  const markAsArrived = async (id) => {
+    try {
+      // Tell the backend to update the MongoDB status to 'RESOLVED'
+      await axiosInstance.put(`/hospital/emergencies/${id}/resolve`);
+      
+      // Remove them from the screen
+      setEmergencies((prev) => prev.filter(req => req.id !== id));
+      toast.success("Patient arrival confirmed. Emergency closed.");
+    } catch (error) {
+      toast.error("Failed to update status in database.");
+    }
   };
 
   return { emergencies, markAsArrived };

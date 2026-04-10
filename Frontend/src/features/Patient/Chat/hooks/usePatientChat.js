@@ -3,7 +3,6 @@ import { useSelector } from 'react-redux';
 import { sendChatMessageApi } from '../api/chatApi';
 import toast from 'react-hot-toast';
 
-// Translations for the AI's initial greeting
 const GREETINGS = {
   'English': 'Hello. I am MedAssist AI. Please click a symptom below or describe your emergency.',
   'Hindi': 'नमस्ते। मैं मेडअसिस्ट एआई हूं। कृपया नीचे एक लक्षण पर क्लिक करें या अपनी आपात स्थिति का वर्णन करें।',
@@ -18,13 +17,17 @@ export const usePatientChat = (selectedLanguage) => {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [location, setLocation] = useState(null);
+  
+  // Emergency States
   const [isDispatched, setIsDispatched] = useState(false);
   const [predictedDisease, setPredictedDisease] = useState('');
   const [immediateActions, setImmediateActions] = useState([]);
+  
+  // NEW: State to hold the assigned hospital's name
+  const [assignedHospitalName, setAssignedHospitalName] = useState(null);
 
   const messagesEndRef = useRef(null);
 
-  // When language changes, update the first greeting message
   useEffect(() => {
     setMessages([{ role: 'ai', content: GREETINGS[selectedLanguage] }]);
   }, [selectedLanguage]);
@@ -51,7 +54,6 @@ export const usePatientChat = (selectedLanguage) => {
     setIsLoading(true);
 
     try {
-      // Pass the strict language to backend to force Gemini's output language
       const data = await sendChatMessageApi(user._id, text, currentHistory, location, language);
       
       setMessages((prev) => [...prev, { role: 'ai', content: data.reply }]);
@@ -59,6 +61,10 @@ export const usePatientChat = (selectedLanguage) => {
       if (data.isEmergencyDispatched) {
         setPredictedDisease(data.disease);
         setImmediateActions(data.immediate_actions);
+        
+        // NEW: Grab the hospital name from the backend and save it!
+        setAssignedHospitalName(data.hospitalName); 
+        
         setTimeout(() => setIsDispatched(true), 1500);
       }
     } catch (error) {
@@ -71,6 +77,7 @@ export const usePatientChat = (selectedLanguage) => {
 
   return {
     messages, inputValue, setInputValue, isLoading, sendMessage, 
-    messagesEndRef, isDispatched, predictedDisease, immediateActions
+    messagesEndRef, isDispatched, predictedDisease, immediateActions,
+    assignedHospitalName // NEW: Export it so the UI can use it!
   };
 };

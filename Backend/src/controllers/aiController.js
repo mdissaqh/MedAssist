@@ -13,111 +13,125 @@ const chatModel = new ChatGoogleGenerativeAI({
 
 exports.handlePatientChat = async (req, res) => {
   try {
-    // NEW: Accept language from frontend
     const { patientId, message, history, location, language } = req.body; 
-
     const patient = await Patient.findById(patientId);
     if (!patient) return res.status(404).json({ error: "Patient not found" });
 
     const selectedLanguage = language || 'English';
 
-    // 1. THE BILINGUAL SYSTEM PROMPT
+    // 1. UPDATED PROMPT: Force the AI to remember THIS IS the emergency system.
     const systemPrompt = `
-      You are MedAssist, an emergency medical triage AI.
+      You are MedAssist, an emergency medical triage AI built directly into a hospital dispatch network.
       The patient is communicating in: ${selectedLanguage}.
       
       YOUR GOAL: Assess if symptoms are CRITICAL or NON_CRITICAL.
       
       RULES:
-      1. You MUST translate and provide your "reply" and "immediate_actions" in ${selectedLanguage}.
-      2. You MUST categorize the emergency into EXACTLY ONE of these English terms for the "disease" field: 
-         ['Heart Attack', 'Stroke', 'Cardiac Arrest', 'Severe Asthma Attack', 'Severe External Bleeding', 'Brain Hemorrhage', 'Seizure', 'Snake Bite', 'Other']. DO NOT translate the "disease" field.
-      3. YOU MUST OUTPUT STRICTLY VALID JSON. NO OTHER TEXT.
+      1. Provide your "reply" and "immediate_actions" in ${selectedLanguage}.
+      2. Categorize the emergency into EXACTLY ONE of these English terms for the "disease" field: 
+         ['Heart Attack', 'Stroke', 'Cardiac Arrest', 'Severe Asthma Attack', 'Severe External Bleeding', 'Brain Hemorrhage', 'Seizure', 'Snake Bite', 'Other'].
+      3. STRICT RULE: DO NOT EVER tell the patient to call emergency services, 911, or an ambulance. THIS APP IS THE EMERGENCY DISPATCH. Tell them "I am alerting the nearest hospital" or "Help is on the way."
+      4. OUTPUT ONLY VALID JSON. Do not use markdown blocks.
       
       OUTPUT FORMAT:
       {
-        "reply": "Your empathetic response in ${selectedLanguage}", 
+        "reply": "Your empathetic response in ${selectedLanguage} (Do not say call 911)", 
         "severity": "CRITICAL" | "NON_CRITICAL", 
-        "disease": "Must be the exact English term from the list",
-        "immediate_actions": ["Action 1 in ${selectedLanguage}", "Action 2 in ${selectedLanguage}"]
+        "disease": "Exact English term from the list",
+        "immediate_actions": ["Action 1", "Action 2"]
       }
     `;
 
     const messages = [new SystemMessage(systemPrompt)];
-    if (history) {
-      history.forEach(msg => {
-        messages.push(msg.role === 'user' ? new HumanMessage(msg.content) : new AIMessage(msg.content));
-      });
-    }
+    if (history) history.forEach(msg => messages.push(msg.role === 'user' ? new HumanMessage(msg.content) : new AIMessage(msg.content)));
     messages.push(new HumanMessage(message));
 
     const response = await chatModel.invoke(messages);
     
     let aiData;
     try {
-      const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+      // Safely extract JSON even if Gemini acts weird
+      let cleanText = response.content.replace(/```json/gi, '').replace(/```/gi, '').trim();
+      const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
       aiData = JSON.parse(jsonMatch[0]);
     } catch (parseError) {
-      aiData = { reply: "Error processing. Please call emergency services directly.", severity: "NON_CRITICAL", disease: "Other", immediate_actions: [] };
+      console.error("AI Parse Error:", response.content);
+      aiData = { 
+        reply: "Help is on the way. Please stay calm while I connect you to the nearest hospital.", 
+        severity: "CRITICAL", 
+        disease: "Other", 
+        immediate_actions: ["Sit down and rest", "Unlock your door"] 
+      };
     }
 
     let isEmergencyDispatched = false;
-    let assignedHospitalName = "Searching...";
+    let isAmbulanceAssigned = false;
+    let assignedHospitalName = null;
     
-    // 2. THE SMART DISPATCH LOGIC
     if (aiData.severity === 'CRITICAL') {
       isEmergencyDispatched = true;
       
-      // Find a hospital that treats this EXACT disease, has it turned ON, and has an ambulance!
+      // Clean the string to ensure exact matching
+      const predictedDisease = aiData.disease.trim();
+      
+      // STRICT MONGODB QUERY: Must have ambulances AND the exact disease MUST be toggled to TRUE.
       const availableHospital = await Hospital.findOne({
-        'specialties': { 
-          $elemMatch: { disease: aiData.disease, isAvailable: true } 
-        },
-        availableAmbulances: { $gt: 0 }
+        availableAmbulances: { $gt: 0 },
+        specialties: { 
+          $elemMatch: { 
+            disease: predictedDisease, 
+            isAvailable: true // This absolutely forces the database to respect your toggle
+          } 
+        }
       });
 
       let hospitalIdToAssign = null;
       if (availableHospital) {
         hospitalIdToAssign = availableHospital._id;
         assignedHospitalName = availableHospital.name;
+        isAmbulanceAssigned = true;
         
-        // Decrease ambulance count by 1 (Atomic update)
         availableHospital.availableAmbulances -= 1;
         await availableHospital.save();
       }
 
+      // Create the emergency record
       const newEmergency = await Emergency.create({
         patient: patient._id,
         assignedHospital: hospitalIdToAssign,
         location: location || { lat: 0, lng: 0 },
         symptomsReported: message,
-        aiPredictedDisease: aiData.disease,
+        aiPredictedDisease: predictedDisease,
         severity: 'CRITICAL',
-        status: 'DISPATCHED'
+        status: isAmbulanceAssigned ? 'DISPATCHED' : 'SEARCHING_AMBULANCE'
       });
 
-      // Notify the specific hospital
-      const io = req.app.get('socketio');
-      io.emit('new_emergency', {
-        id: newEmergency._id,
-        patientMobile: patient.mobileNumber,
-        address: "Location coordinates received",
-        symptoms: message,
-        predictedDisease: aiData.disease,
-        eta: "8 Mins", 
-      });
+      // Only send the socket alert to the hospital if they were actually assigned!
+      if (isAmbulanceAssigned) {
+        const io = req.app.get('socketio');
+        // We can use broadcast or emit. We'll emit to all connected hospital dashboards.
+        io.emit('new_emergency', {
+          id: newEmergency._id,
+          patientMobile: patient.mobileNumber,
+          address: location ? `Lat: ${location.lat}, Lng: ${location.lng}` : "Location pending...",
+          symptoms: message,
+          predictedDisease: predictedDisease,
+          eta: "8 Mins", 
+        });
+      }
     }
 
-    // 3. Send data back to the Patient UI
     res.json({
       reply: aiData.reply,
       isEmergencyDispatched,
+      isAmbulanceAssigned,
       disease: aiData.disease,
       immediate_actions: aiData.immediate_actions || [],
       hospitalName: assignedHospitalName
     });
 
   } catch (error) {
+    console.error("Server Error:", error);
     res.status(500).json({ error: "Failed to process chat" });
   }
 };
