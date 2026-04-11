@@ -1,41 +1,38 @@
-const dotenv = require('dotenv');
-dotenv.config();
-const connectDB = require('./src/config/db');
 const app = require('./src/app');
-const http = require('http'); // Built-in Node module
-const { Server } = require('socket.io'); // Import Socket.io
+const http = require('http');
+const { Server } = require('socket.io'); // THIS is what was missing!
 
-
-
-// Connect to MongoDB
-connectDB();
-
-// Create HTTP server wrapping the Express app
+// Create the actual HTTP server
 const server = http.createServer(app);
 
-// Initialize Socket.io
+// Apply CORS to Socket.io here!
+const allowedOrigins = [
+  'http://localhost:5173', 
+  'https://bucolic-profiterole-328034.netlify.app'
+];
+
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173", // Allow your React frontend
-    methods: ["GET", "POST"]
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
-// When a hospital dashboard connects
+// Make io accessible inside app.js (for your simulate-emergency route)
+app.set('socketio', io);
+
+// Basic socket connection logic
 io.on('connection', (socket) => {
-  console.log(`🔌 Hospital Dashboard connected: ${socket.id}`);
+  console.log('A user connected:', socket.id);
   
   socket.on('disconnect', () => {
-    console.log(`❌ Dashboard disconnected: ${socket.id}`);
+    console.log('User disconnected:', socket.id);
   });
 });
 
-// Make 'io' globally accessible to all our backend controllers!
-app.set('socketio', io);
-
+// Start the server
 const PORT = process.env.PORT || 5000;
-
-// IMPORTANT: We use server.listen now, NOT app.listen!
 server.listen(PORT, () => {
-  console.log(`🚀 Server & WebSockets running on port ${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 });
