@@ -12,7 +12,7 @@ export const useEmergencySocket = () => {
   useEffect(() => {
     const fetchExistingEmergencies = async () => {
       try {
-        const response = await axiosInstance.get('/hospital/emergencies');
+        const response = await axiosInstance.get('api/hospital/emergencies');
         setEmergencies(response.data);
       } catch (error) {
         console.error("Failed to load existing emergencies");
@@ -46,7 +46,7 @@ export const useEmergencySocket = () => {
   const markAsArrived = async (id) => {
     try {
       // Tell the backend to update the MongoDB status to 'RESOLVED'
-      await axiosInstance.put(`/hospital/emergencies/${id}/resolve`);
+      await axiosInstance.put(`api/hospital/emergencies/${id}/resolve`);
       
       // Remove them from the screen
       setEmergencies((prev) => prev.filter(req => req.id !== id));
