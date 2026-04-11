@@ -8,7 +8,28 @@ const hospitalRoutes = require('./routes/hospitalRoutes');
 const app = express();
 
 // Middlewares
-app.use(cors()); // Allow cross-origin requests from React
+const allowedOrigins = [
+  'http://localhost:5173', 
+  'https://bucolic-profiterole-328034.netlify.app' // Your live Netlify URL
+];
+
+const corsOptions = {
+  origin: allowedOrigins,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  credentials: true
+};
+
+// 2. Apply it to your Express app
+app.use(cors(corsOptions));
+
+// 3. Apply it to your Socket.io server
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
 app.use(express.json()); // Parse incoming JSON payloads
 
 // Mount Routes
