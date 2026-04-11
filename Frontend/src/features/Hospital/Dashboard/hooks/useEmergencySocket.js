@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 import axiosInstance from '../../../../api/axiosInstance';
 import toast from 'react-hot-toast';
 
-const SOCKET_SERVER_URL = 'http://localhost:5000'; 
+const SOCKET_SERVER_URL = 'https://medassist-ufl5.onrender.com'; 
 
 export const useEmergencySocket = () => {
   const [emergencies, setEmergencies] = useState([]);
