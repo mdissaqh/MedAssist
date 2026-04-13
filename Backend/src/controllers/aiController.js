@@ -110,7 +110,7 @@ exports.handlePatientChat = async (req, res) => {
       if (isAmbulanceAssigned) {
         const io = req.app.get('socketio');
         // We can use broadcast or emit. We'll emit to all connected hospital dashboards.
-        io.emit('new_emergency', {
+        io.to(hospitalIdToAssign.toString()).emit('new_emergency', {
           id: newEmergency._id,
           patientMobile: patient.mobileNumber,
           address: location ? `Lat: ${location.lat}, Lng: ${location.lng}` : "Location pending...",

@@ -1,10 +1,12 @@
 import React from 'react';
 import { useEmergencySocket } from '../hooks/useEmergencySocket';
+import { useSelector } from 'react-redux';
 import { AlertTriangle, Clock, MapPin, Phone, Activity } from 'lucide-react';
 import './HospitalDashboard.scss';
 
 const HospitalDashboard = () => {
-  const { emergencies, markAsArrived } = useEmergencySocket();
+  const { user } = useSelector((state) => state.auth);
+  const { emergencies, markAsArrived } = useEmergencySocket(user?._id);
 
   return (
     <div className="hospital-dashboard" style={{ padding: '0' }}>

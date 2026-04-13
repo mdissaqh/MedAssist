@@ -5,7 +5,8 @@ import toast from 'react-hot-toast';
 
 const SOCKET_SERVER_URL = 'https://medassist-ufl5.onrender.com'; 
 
-export const useEmergencySocket = () => {
+// NEW: Accept hospitalId as a parameter
+export const useEmergencySocket = (hospitalId) => {
   const [emergencies, setEmergencies] = useState([]);
 
   // Fetch from DB on load
@@ -23,12 +24,17 @@ export const useEmergencySocket = () => {
 
   // Listen for Live Updates
   useEffect(() => {
+    // Prevent connecting if we don't have the hospital ID yet
+    if (!hospitalId) return;
+
     const socket = io(SOCKET_SERVER_URL);
+
+    // NEW: Tell the backend to join this specific hospital's room!
+    socket.emit('join_hospital_room', hospitalId);
 
     socket.on('new_emergency', (newRequest) => {
       // 1. PLAY THE ALARM SOUND
       try {
-        // This looks inside your Frontend/public folder for alarm.mp3
         const alarm = new Audio('/alarm.mp3'); 
         alarm.play().catch((err) => console.log("Browser blocked auto-play. User must interact with the page first.", err));
       } catch (e) {
@@ -40,15 +46,12 @@ export const useEmergencySocket = () => {
     });
 
     return () => socket.disconnect();
-  }, []);
+  }, [hospitalId]); // Re-run if hospitalId changes
 
   // 2. PERMANENTLY RESOLVE THE PATIENT
   const markAsArrived = async (id) => {
     try {
-      // Tell the backend to update the MongoDB status to 'RESOLVED'
       await axiosInstance.put(`api/hospital/emergencies/${id}/resolve`);
-      
-      // Remove them from the screen
       setEmergencies((prev) => prev.filter(req => req.id !== id));
       toast.success("Patient arrival confirmed. Emergency closed.");
     } catch (error) {

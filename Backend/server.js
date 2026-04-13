@@ -23,6 +23,10 @@ app.set('socketio', io);
 
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
+  socket.on('join_hospital_room', (hospitalId) => {
+    socket.join(hospitalId);
+    console.log(`🏥 Hospital ${hospitalId} joined its private room.`);
+  });
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
   });
