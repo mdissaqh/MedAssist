@@ -2,87 +2,261 @@ import React, { useState } from 'react';
 import LiveAmbulanceMap from './LiveAmbulanceMap';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePatientChat } from '../hooks/usePatientChat';
-import { Send, MapPin, AlertCircle, ShieldAlert, Globe } from 'lucide-react';
+import { Send, AlertCircle, ShieldAlert, Globe, Activity } from 'lucide-react';
 import './PatientChat.scss';
 
 // These are SYMPTOMS (what the patient feels), which map safely to the 8 Major Diseases in the backend AI prompt.
 const SYMPTOMS_DICT = {
-  'English': ["Severe Chest Pain", "Sudden Weakness/Speech Loss", "No Pulse/Collapsed", "Severe Breathing Issue", "Deep Cut/Heavy Bleeding", "Severe Headache", "Facing uncontrolled movements", "Snake Bite"],
-  'Hindi': ["सीने में भारी दर्द", "अचानक कमजोरी/बोलने में दिक्कत", "नाड़ी नहीं/बेहोश", "सांस लेने में गंभीर समस्या", "गहरा घाव/भारी खून", "भयानक सिरदर्द", "दौरे/कांपना", "सांप/जानवर का काटना"],
-  'Kannada': ["ತೀವ್ರ ಎದೆ ನೋವು", "ಹಠಾತ್ ದೌರ್ಬಲ್ಯ/ಮಾತು ನಿಲ್ಲುವಿಕೆ", "ನಾಡಿ ಇಲ್ಲ/ಕುಸಿತ", "ಉಸಿರಾಟದ ತೊಂದರೆ", "ಆಳವಾದ ಗಾಯ/ರಕ್ತಸ್ರಾವ", "ತೀವ್ರ ತಲೆನೋವು", "ಸೆಳೆತ/ನಡುಕ", "ಹಾವು/ಪ್ರಾಣಿ ಕಡಿತ"],
-  'Tamil': ["கடுமையான நெஞ்சு வலி", "திடீர் பலவீனம்/பேச்சு இழப்பு", "நாடி இல்லை/மயக்கம்", "கடுமையான மூச்சுத்திணறல்", "ஆழமான வெட்டு/இரத்தப்போக்கு", "கடுமையான தலைவலி", "வலிப்பு/நடுக்கம்", "பாம்பு/விலங்கு கடி"],
-  'Telugu': ["తీవ్రమైన ఛాతీ నొప్పి", "ఆకస్మిక బలహీనత/మాట కోల్పోవడం", "పల్స్ లేదు/కుప్పకూలడం", "తీవ్రమైన శ్వాస సమస్య", "లోతైన కోత/భారీ రక్తస్రావం", "తీవ్రమైన తలనొప్పి", "మూర్ఛలు/వణుకు", "పాము/జంతువు కాటు"]
+  English: [
+    "Severe Chest Pain",
+    "Sudden Weakness/Speech Loss",
+    "No Pulse/Collapsed",
+    "Severe Breathing Issue",
+    "Deep Cut/Heavy Bleeding",
+    "Severe Headache",
+    "Facing uncontrolled movements",
+    "Snake Bite"
+  ],
+  Hindi: [
+    "सीने में भारी दर्द",
+    "अचानक कमजोरी/बोलने में दिक्कत",
+    "नाड़ी नहीं/बेहोश",
+    "सांस लेने में गंभीर समस्या",
+    "गहरा घाव/भारी खून",
+    "भयानक सिरदर्द",
+    "दौरे/कांपना",
+    "सांप/जानवर का काटना"
+  ],
+  Kannada: [
+    "ತೀವ್ರ ಎದೆ ನೋವು",
+    "ಹಠಾತ್ ದೌರ್ಬಲ್ಯ/ಮಾತು ನಿಲ್ಲುವಿಕೆ",
+    "ನಾಡಿ ಇಲ್ಲ/ಕುಸಿತ",
+    "ಉಸಿರಾಟದ ತೊಂದರೆ",
+    "ಆಳವಾದ ಗಾಯ/ರಕ್ತಸ್ರಾವ",
+    "ತೀವ್ರ ತಲೆನೋವು",
+    "ಸೆಳೆತ/ನಡುಕ",
+    "ಹಾವು/ಪ್ರಾಣಿ ಕಡಿತ"
+  ],
+  Tamil: [
+    "கடுமையான நெஞ்சு வலி",
+    "திடீர் பலவீனம்/பேச்சு இழப்பு",
+    "நாடி இல்லை/மயக்கம்",
+    "கடுமையான மூச்சுத்திணறல்",
+    "ஆழமான வெட்டு/இரத்தப்போக்கு",
+    "கடுமையான தலைவலி",
+    "வலிப்பு/நடுக்கம்",
+    "பாம்பு/விலங்கு கடி"
+  ],
+  Telugu: [
+    "తీవ్రమైన ఛాతీ నొప్పి",
+    "ఆకస్మిక బలహీనత/మాట కోల్పోవడం",
+    "పల్స్ లేదు/కుప్పకూలడం",
+    "తీవ్రమైన శ్వాస సమస్య",
+    "లోతైన కోత/భారీ రక్తస్రావం",
+    "తీవ్రమైన తలనొప్పి",
+    "మూర్ఛలు/వణుకు",
+    "పాము/జంతువు కాటు"
+  ]
 };
 
 const PatientChat = () => {
   const [selectedLanguage, setSelectedLanguage] = useState('English');
-  // Pass the language into the hook so the greeting translates instantly
+
   const {
-    messages, inputValue, setInputValue, isLoading, sendMessage, messagesEndRef, 
-    isDispatched, predictedDisease, immediateActions, 
-    assignedHospitalName
+    messages,
+    inputValue,
+    setInputValue,
+    isLoading,
+    sendMessage,
+    messagesEndRef,
+    isDispatched,
+    predictedDisease,
+    immediateActions,
+    assignedHospitalName,
+    severity,        // NEW: exported from hook
+    patientLocation   // SAFE: optional fallback for map props
   } = usePatientChat(selectedLanguage);
+
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') sendMessage(inputValue, selectedLanguage);
   };
 
-  // --- EMERGENCY TRIGGERED SCREEN ---
-  // --- EMERGENCY TRIGGERED SCREEN ---
+  const latestAiMessage =
+    messages[messages.length - 1]?.role === 'ai'
+      ? messages[messages.length - 1].content
+      : null;
+
+  // ==========================================
+  // 1. NON-EMERGENCY ADVICE SCREEN
+  // Show this when the case is NON_CRITICAL and AI has returned advice.
+  // ==========================================
+  if (!isDispatched && severity === 'NON_CRITICAL' && messages.length > 2 && latestAiMessage) {
+    return (
+      <motion.div
+        className="dispatch-screen non-critical-screen"
+        style={{ background: '#f1f5f9', color: '#1e293b' }}
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+      >
+        <motion.div
+          className="non-critical-icon"
+          style={{
+            padding: '1rem',
+            background: '#dbeafe',
+            borderRadius: '50%',
+            marginBottom: '1rem',
+            color: '#1d4ed8'
+          }}
+          animate={{ scale: [1, 1.05, 1] }}
+          transition={{ repeat: Infinity, duration: 2 }}
+        >
+          <Activity size={40} />
+        </motion.div>
+
+        <h3
+          style={{
+            fontSize: '1.5rem',
+            fontWeight: 'bold',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginBottom: '10px'
+          }}
+        >
+          <Activity size={20} color="#1d4ed8" />
+          NON-CRITICAL CONDITION
+        </h3>
+
+        <p style={{ margin: '15px 0', fontSize: '1rem', textAlign: 'center' }}>
+          No hospital is being allocated. Based on your symptoms, general medical advice is shown below.
+        </p>
+
+        <div className="non-critical-advice" style={{ width: '100%', maxWidth: '700px' }}>
+          <h3>MedAssist Advice:</h3>
+          <div className="advice-content" style={{ textAlign: 'left', lineHeight: '1.6' }}>
+            {latestAiMessage
+              .split('\n')
+              .map((para, i) => (para.trim() ? <p key={i}>{para.trim()}</p> : null))}
+          </div>
+        </div>
+
+        <button
+          onClick={() => window.location.reload()}
+          style={{
+            marginTop: '20px',
+            padding: '10px 20px',
+            background: '#0ea5e9',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            fontWeight: 'bold',
+            cursor: 'pointer'
+          }}
+        >
+          Close & Exit
+        </button>
+      </motion.div>
+    );
+  }
+
+  // ==========================================
+  // 2. CRITICAL EMERGENCY DISPATCH SCREEN
+  // ==========================================
   if (isDispatched) {
-    // Check if a hospital was actually assigned
     const isAssigned = Boolean(assignedHospitalName);
 
     return (
-      <motion.div 
+      <motion.div
         className="dispatch-screen"
-        initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
       >
-        <motion.div 
+        <motion.div
           className="pulse-ring"
-          animate={{ scale: [1, 1.5, 1], opacity: [0.8, 0, 0.8] }} transition={{ repeat: Infinity, duration: 2 }}
+          animate={{ scale: [1, 1.5, 1], opacity: [0.8, 0, 0.8] }}
+          transition={{ repeat: Infinity, duration: 2 }}
         >
           <ShieldAlert size={80} color="white" />
         </motion.div>
-        
-        {/* ========================================== */}
-        {/* 1. MASSIVE WARNING IF NO HOSPITAL IS FOUND */}
-        {/* ========================================== */}
+
         {!isAssigned && (
-          <div style={{ background: '#fef08a', color: '#991b1b', padding: '20px', borderRadius: '12px', margin: '20px 0', border: '4px solid #facc15', textAlign: 'center', width: '90%', maxWidth: '450px', boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}>
-            <h3 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-              ⚠️ NETWORK UNAVAILABLE
+          <div
+            style={{
+              background: '#fef08a',
+              color: '#991b1b',
+              padding: '20px',
+              borderRadius: '12px',
+              margin: '20px 0',
+              border: '4px solid #facc15',
+              textAlign: 'center',
+              width: '90%',
+              maxWidth: '450px',
+              boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
+            }}
+          >
+            <h3
+              style={{
+                margin: 0,
+                fontSize: '1.3rem',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px'
+              }}
+            >
+              ⚠️ HOSPITALS UNAVAILABLE
             </h3>
             <p style={{ margin: '15px 0', fontWeight: 'bold', fontSize: '1.1rem' }}>
-              No hospital with '<span style={{textDecoration: 'underline'}}>{predictedDisease}</span>' services is currently available in your area.
+              No hospital with <span style={{ textDecoration: 'underline' }}>{predictedDisease}</span> services is currently available in your area.
             </p>
-            <h2 style={{ margin: 0, fontSize: '1.6rem', color: '#dc2626', background: 'white', padding: '10px', borderRadius: '8px', border: '2px solid #dc2626' }}>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: '1.6rem',
+                color: '#dc2626',
+                background: 'white',
+                padding: '10px',
+                borderRadius: '8px',
+                border: '2px solid #dc2626'
+              }}
+            >
               PLEASE CALL LOCAL EMERGENCY SERVICES IMMEDIATELY!
             </h2>
           </div>
         )}
 
-        {/* ========================================== */}
-        {/* 2. SUCCESS MESSAGE IF HOSPITAL IS ASSIGNED */}
-        {/* ========================================== */}
         {isAssigned && (
           <div style={{ width: '100%', maxWidth: '600px' }}>
             <h2>AMBULANCE DISPATCHED</h2>
-            <div style={{ background: '#dcfce7', color: '#166534', padding: '15px', borderRadius: '12px', margin: '15px auto', textAlign: 'center', border: '2px solid #22c55e' }}>
+
+            <div
+              style={{
+                background: '#dcfce7',
+                color: '#166534',
+                padding: '15px',
+                borderRadius: '12px',
+                margin: '15px auto',
+                textAlign: 'center',
+                border: '2px solid #22c55e'
+              }}
+            >
               <h3 style={{ margin: 0, fontSize: '1.1rem' }}>✅ Hospital Assigned:</h3>
               <h2 style={{ margin: '5px 0 0 0', fontSize: '1.5rem' }}>{assignedHospitalName}</h2>
             </div>
-            
-            {/* NEW: THE LIVE TRACKING MAP! */}
-            <LiveAmbulanceMap 
-              hospitalName={assignedHospitalName} 
-              patientLat={location?.lat} 
-              patientLng={location?.lng} 
+
+            <LiveAmbulanceMap
+              hospitalName={assignedHospitalName}
+              patientLat={patientLocation?.lat}
+              patientLng={patientLocation?.lng}
             />
           </div>
         )}
 
-        <p className="disease-alert" style={{ marginTop: isAssigned ? '0' : '10px' }}>Code: {predictedDisease}</p>
-        
+        <p className="disease-alert" style={{ marginTop: isAssigned ? '0' : '10px' }}>
+          Code: {predictedDisease}
+        </p>
+
         <div className="instructions">
           <h3>Immediate Actions:</h3>
           <ul>
@@ -93,11 +267,13 @@ const PatientChat = () => {
             )}
           </ul>
         </div>
-        
       </motion.div>
     );
   }
 
+  // ==========================================
+  // 3. NORMAL CHAT SCREEN
+  // ==========================================
   return (
     <div className="patient-chat-container">
       <header className="chat-header">
@@ -105,16 +281,23 @@ const PatientChat = () => {
           <AlertCircle color="#d32f2f" size={24} />
           <h2>MedAssist</h2>
         </div>
-        
+
         <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Globe size={18} color="#666" />
-          <select 
-            value={selectedLanguage} 
+          <select
+            value={selectedLanguage}
             onChange={(e) => setSelectedLanguage(e.target.value)}
-            style={{ padding: '6px', borderRadius: '6px', border: '1px solid #ccc', outline: 'none' }}
+            style={{
+              padding: '6px',
+              borderRadius: '6px',
+              border: '1px solid #ccc',
+              outline: 'none'
+            }}
           >
-            {Object.keys(SYMPTOMS_DICT).map(lang => (
-              <option key={lang} value={lang}>{lang}</option>
+            {Object.keys(SYMPTOMS_DICT).map((lang) => (
+              <option key={lang} value={lang}>
+                {lang}
+              </option>
             ))}
           </select>
         </div>
@@ -123,25 +306,38 @@ const PatientChat = () => {
       <div className="chat-window">
         <AnimatePresence>
           {messages.map((msg, index) => (
-            <motion.div key={index} className={`chat-bubble ${msg.role}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+            <motion.div
+              key={index}
+              className={`chat-bubble ${msg.role}`}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
               {msg.content}
             </motion.div>
           ))}
+
           {isLoading && (
             <motion.div className="chat-bubble ai loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <span className="dot"></span><span className="dot"></span><span className="dot"></span>
+              <span className="dot"></span>
+              <span className="dot"></span>
+              <span className="dot"></span>
             </motion.div>
           )}
         </AnimatePresence>
+
         <div ref={messagesEndRef} />
       </div>
 
       <div className="input-area">
-        {/* Shows the 8 Symptom buttons matching the 8 Major Diseases in the selected language */}
         {messages.length <= 3 && (
           <div className="quick-symptoms" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
             {SYMPTOMS_DICT[selectedLanguage].map((symp, i) => (
-              <button key={i} onClick={() => sendMessage(symp, selectedLanguage)} disabled={isLoading} style={{ fontSize: '0.85rem' }}>
+              <button
+                key={i}
+                onClick={() => sendMessage(symp, selectedLanguage)}
+                disabled={isLoading}
+                style={{ fontSize: '0.85rem' }}
+              >
                 {symp}
               </button>
             ))}
@@ -149,8 +345,21 @@ const PatientChat = () => {
         )}
 
         <div className="typing-area">
-          <input type="text" placeholder="..." value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyPress={handleKeyPress} disabled={isLoading} />
-          <button className="send-btn" onClick={() => sendMessage(inputValue, selectedLanguage)} disabled={isLoading || !inputValue.trim()}><Send size={20} /></button>
+          <input
+            type="text"
+            placeholder="..."
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyPress={handleKeyPress}
+            disabled={isLoading}
+          />
+          <button
+            className="send-btn"
+            onClick={() => sendMessage(inputValue, selectedLanguage)}
+            disabled={isLoading || !inputValue.trim()}
+          >
+            <Send size={20} />
+          </button>
         </div>
       </div>
     </div>
