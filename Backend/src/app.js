@@ -10,7 +10,8 @@ const app = express();
 // Middlewares
 const allowedOrigins = [
   'http://localhost:5173', 
-  'https://bucolic-profiterole-328034.netlify.app' // Your live Netlify URL
+  'https://bucolic-profiterole-328034.netlify.app',
+  'https://med-assist-sooty.vercel.app'
 ];
 
 // 1. Apply CORS to Express
