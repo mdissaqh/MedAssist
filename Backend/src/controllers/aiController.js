@@ -1,15 +1,15 @@
 const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
-const { HumanMessage, SystemMessage, AIMessage } = require('@langchain/core/messages');
+const { HumanMessage, AIMessage } = require('@langchain/core/messages'); // SystemMessage removed
 const Emergency = require('../models/Emergency');
 const Patient = require('../models/Patient');
 const Hospital = require('../models/Hospital');
 
 // ==========================================
-// 1. GEMMA CONFIGURATION & TOKEN OPTIMIZATION
+// 1. GEMMA CONFIGURATION
 // ==========================================
 const chatModel = new ChatGoogleGenerativeAI({
-  model: "gemma-3-27b-it", // Using Gemma as requested
-  maxOutputTokens: 400, // Protects your 15k TPM limit
+  model: "gemma-3-27b-it", 
+  maxOutputTokens: 400, // Safe limit for your 15k TPM quota
   temperature: 0.1, 
   apiKey: process.env.GOOGLE_API_KEY
 });
@@ -23,23 +23,22 @@ exports.handlePatientChat = async (req, res) => {
     const selectedLanguage = language || 'English';
 
     // ==========================================
-    // 2. UPDATED PROMPT: Advice vs Dispatch Rules
+    // 2. PROMPT RULES
     // ==========================================
     const systemPrompt = `
-      You are MedAssist, an empathetic medical advice and emergency triage AI.
-      The patient is communicating in: ${selectedLanguage}.
+      You are MedAssist, an emergency medical triage AI. The patient is speaking in: ${selectedLanguage}.
 
       CRITICAL DISPATCH RULES:
       If symptoms match exactly ONE of these severe conditions: ['Heart Attack', 'Stroke', 'Cardiac Arrest', 'Severe Asthma Attack', 'Severe External Bleeding', 'Brain Hemorrhage', 'Seizure', 'Snake Bite'].
       1. Set "severity" to "CRITICAL".
       2. Set "disease" to the exact English term from the list above.
-      3. Your "reply" must be short: "I am alerting the nearest hospital. Help is on the way." (Translated to ${selectedLanguage}). Do NOT tell them to call emergency services.
+      3. Your "reply" must be: "I am alerting the nearest hospital. Help is on the way." (Translated to ${selectedLanguage}). Do NOT tell them to call 911.
 
       NON-DISPATCH ADVICE RULES:
       If symptoms are NOT severe or do NOT fall on the critical list (e.g., 'Feeling Cold', 'Slight Headache', 'Stomach ache'):
       1. Set "severity" to "NON_CRITICAL".
       2. Set "disease" to "None".
-      3. Your "reply" MUST provide detailed general medical advice in ${selectedLanguage}, including: explanations, comfort steps, when to see a doctor, and over-the-counter medicine suggestions if appropriate.
+      3. Your "reply" MUST provide detailed general medical advice in ${selectedLanguage}. Tell them why it might be happening, comfort steps, and when to see a doctor. Do NOT say you are allocating a hospital.
 
       OUTPUT ONLY VALID JSON. Do not use markdown blocks like \`\`\`json.
       FORMAT:
@@ -52,24 +51,40 @@ exports.handlePatientChat = async (req, res) => {
     `;
 
     // ==========================================
-    // 3. INPUT TOKEN OPTIMIZATION (Crucial for 15k TPM)
-    // Keep only the last 4 messages to save tokens.
+    // 3. HISTORY TRIM
     // ==========================================
     let trimmedHistory = [];
     if (history && history.length > 0) {
       trimmedHistory = history.slice(-4); 
     }
 
-    const messages = [new SystemMessage(systemPrompt)];
-    trimmedHistory.forEach(msg => messages.push(msg.role === 'user' ? new HumanMessage(msg.content) : new AIMessage(msg.content)));
-    messages.push(new HumanMessage(message));
+    // ==========================================
+    // 4. THE FIX: Combine Rules + Patient Message
+    // Gemma doesn't support SystemMessage, so we pass the rules inside the final HumanMessage
+    // ==========================================
+    const messages = [];
+    
+    // Add the trimmed history first
+    trimmedHistory.forEach(msg => {
+      messages.push(msg.role === 'user' ? new HumanMessage(msg.content) : new AIMessage(msg.content));
+    });
 
-    // Wait for the AI to finish generating the full response
+    // Inject the system prompt and the user's new message into a single HumanMessage
+    const combinedFinalMessage = `
+--- SYSTEM INSTRUCTIONS FOR MEDASSIST AI ---
+${systemPrompt}
+
+--- CURRENT PATIENT MESSAGE ---
+${message}
+    `;
+    
+    messages.push(new HumanMessage(combinedFinalMessage));
+
+    // Wait for the AI response
     const response = await chatModel.invoke(messages);
     
     let aiData;
     try {
-      // Safely extract JSON even if Gemma acts weird
       let cleanText = response.content.replace(/```json/gi, '').replace(/```/gi, '').trim();
       const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
       aiData = JSON.parse(jsonMatch[0]);
@@ -79,7 +94,7 @@ exports.handlePatientChat = async (req, res) => {
         reply: "Help is on the way. Please stay calm while I connect you to the nearest hospital.", 
         severity: "CRITICAL", 
         disease: "Other", 
-        immediate_actions: ["Sit down and rest", "Unlock your door"] 
+        immediate_actions: ["Sit down and rest"] 
       };
     }
 
@@ -89,7 +104,6 @@ exports.handlePatientChat = async (req, res) => {
     
     if (aiData.severity === 'CRITICAL') {
       isEmergencyDispatched = true;
-      
       const predictedDisease = aiData.disease.trim();
       
       const availableHospital = await Hospital.findOne({
@@ -124,7 +138,6 @@ exports.handlePatientChat = async (req, res) => {
 
       if (isAmbulanceAssigned) {
         const io = req.app.get('socketio');
-        // Emit to the specific hospital room
         io.to(hospitalIdToAssign.toString()).emit('new_emergency', {
           id: newEmergency._id,
           patientMobile: patient.mobileNumber,
@@ -136,7 +149,6 @@ exports.handlePatientChat = async (req, res) => {
       }
     }
 
-    // Send the final result back to the frontend!
     res.json({
       reply: aiData.reply,
       isEmergencyDispatched,
@@ -144,7 +156,7 @@ exports.handlePatientChat = async (req, res) => {
       disease: aiData.disease,
       immediate_actions: aiData.immediate_actions || [],
       hospitalName: assignedHospitalName,
-      severity: aiData.severity // Send severity so frontend knows if it's NON_CRITICAL
+      severity: aiData.severity
     });
 
   } catch (error) {
