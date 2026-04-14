@@ -6,10 +6,10 @@ const Hospital = require('../models/Hospital');
 
 const chatModel = new ChatGoogleGenerativeAI({
   model: "gemma-3-27b-it", 
-  maxOutputTokens: 600, // Increased slightly to allow for markdown + 4 actions
-  temperature: 0.2, // Slightly higher for better conversational markdown
+  maxOutputTokens: 600, 
+  temperature: 0.2, 
   apiKey: process.env.GOOGLE_API_KEY,
-  streaming: true // We are bringing streaming back!
+  streaming: true 
 });
 
 exports.handlePatientChat = async (req, res) => {
@@ -22,7 +22,7 @@ exports.handlePatientChat = async (req, res) => {
     const io = req.app.get('socketio');
 
     // ==========================================
-    // 1. UPDATED PROMPT: Markdown + Exactly 4 Actions
+    // 1. UPDATED PROMPT: Banning 911 & Forcing Physical Steps
     // ==========================================
     const systemPrompt = `
       You are MedAssist, an emergency medical triage AI. The patient is speaking in: ${selectedLanguage}.
@@ -31,7 +31,8 @@ exports.handlePatientChat = async (req, res) => {
       If symptoms match exactly ONE of these severe conditions: ['Heart Attack', 'Stroke', 'Cardiac Arrest', 'Severe Asthma Attack', 'Severe External Bleeding', 'Brain Hemorrhage', 'Seizure', 'Snake Bite'].
       1. Set "severity" to "CRITICAL".
       2. Set "disease" to the exact English term from the list above.
-      3. Your "immediate_actions" array MUST contain EXACTLY 4 highly specific, actionable first-aid steps.
+      3. Your "immediate_actions" array MUST contain EXACTLY 4 physical, actionable first-aid steps (e.g., "Elevate the head", "Loosen clothing").
+      STRICT RULE: YOU MUST NEVER tell the patient to call 911, call an ambulance, or contact emergency services. The ambulance is ALREADY dispatched.
 
       NON-DISPATCH ADVICE RULES:
       If symptoms are NOT severe (e.g., 'Feeling Cold', 'Slight Headache'):
@@ -39,7 +40,7 @@ exports.handlePatientChat = async (req, res) => {
       2. Your conversational reply MUST provide detailed general medical advice.
 
       OUTPUT FORMAT:
-      1. First, output your empathetic conversational response. You MUST use Markdown (bolding, lists) to make it highly readable. Do not say you are calling 911.
+      1. First, output your empathetic conversational response. You MUST use Markdown (bolding, lists) to make it highly readable.
       2. Immediately after your response, output EXACTLY this delimiter: [[|JSON_DATA|]]
       3. Immediately after the delimiter, output the JSON block. Do not use \`\`\`json markdown blocks.
 
@@ -49,11 +50,10 @@ exports.handlePatientChat = async (req, res) => {
       {
         "severity": "CRITICAL" | "NON_CRITICAL",
         "disease": "Exact English term or 'None'",
-        "immediate_actions": ["Action 1", "Action 2", "Action 3", "Action 4"]
+        "immediate_actions": ["Physical step 1", "Physical step 2", "Physical step 3", "Physical step 4"]
       }
     `;
 
-    // History trimming (Max 4 messages)
     let trimmedHistory = [];
     if (history && history.length > 0) {
       trimmedHistory = history.slice(-4); 
@@ -88,7 +88,6 @@ ${message}
           isDelimiterHit = true;
           userReplyText = fullResponse.split('[[|JSON_DATA|]]')[0].trim();
         } else {
-          // Stream tokens directly to the patient's frontend!
           if (token && !fullResponse.includes('[[')) {
             io.to(patientId.toString()).emit('stream_token', { token });
           }
@@ -97,7 +96,7 @@ ${message}
     }
 
     // ==========================================
-    // 3. PARSE JSON & DATABASE UPDATE
+    // 3. PARSE JSON & THE JAVASCRIPT SCRUBBER 
     // ==========================================
     let aiData;
     try {
@@ -109,6 +108,27 @@ ${message}
       userReplyText = userReplyText || "Help is on the way. Please stay calm while I connect you.";
       aiData = { severity: "CRITICAL", disease: "Other", immediate_actions: ["Sit down", "Stay calm", "Take deep breaths", "Unlock doors"] };
     }
+
+    // --- THE JAVASCRIPT BULLETPROOF SHIELD ---
+    let safeActions = aiData.immediate_actions || [];
+    
+    // 1. Scrub forbidden words from the array
+    safeActions = safeActions.map(action => {
+      if (/911|emergency|ambulance|doctor/i.test(action)) {
+        return "Keep the patient as comfortable and still as possible.";
+      }
+      return action;
+    });
+
+    // 2. Force it to be exactly 4 items (Fixes UI breaking if AI sends 3 or 5)
+    if (safeActions.length > 4) safeActions = safeActions.slice(0, 4);
+    while (safeActions.length < 4) {
+      safeActions.push("Monitor the patient's breathing continuously.");
+    }
+    
+    // Apply the clean array back to the data
+    aiData.immediate_actions = safeActions;
+    // ----------------------------------------
 
     let isEmergencyDispatched = false;
     let isAmbulanceAssigned = false;
@@ -154,13 +174,12 @@ ${message}
       }
     }
 
-    // Resolve the frontend API await with the finalized data
     res.json({
-      reply: userReplyText, // The clean markdown string
+      reply: userReplyText, 
       isEmergencyDispatched,
       isAmbulanceAssigned,
       disease: aiData.disease,
-      immediate_actions: aiData.immediate_actions || [], // Will now contain 4 points
+      immediate_actions: aiData.immediate_actions, // This is now scrubbed and perfectly sized!
       hospitalName: assignedHospitalName,
       severity: aiData.severity
     });
