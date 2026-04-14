@@ -8,7 +8,8 @@ const server = http.createServer(app);
 
 const allowedOrigins = [
   'http://localhost:5173', 
-  'https://bucolic-profiterole-328034.netlify.app'
+  'https://bucolic-profiterole-328034.netlify.app',
+  'https://med-assist-sooty.vercel.app'
 ];
 
 const io = new Server(server, {
