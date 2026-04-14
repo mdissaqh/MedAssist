@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import LiveAmbulanceMap from './LiveAmbulanceMap';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePatientChat } from '../hooks/usePatientChat';
@@ -124,7 +125,12 @@ const PatientChat = () => {
         <AnimatePresence>
           {messages.map((msg, index) => (
             <motion.div key={index} className={`chat-bubble ${msg.role}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-              {msg.content}
+              {/* If it's an AI message, render Markdown. Otherwise, render standard text */}
+                {msg.role === 'ai' ? (
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                ) : (
+                  msg.content
+                )}
             </motion.div>
           ))}
           {isLoading && (

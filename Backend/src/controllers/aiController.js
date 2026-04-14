@@ -1,17 +1,15 @@
 const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
-const { HumanMessage, AIMessage } = require('@langchain/core/messages'); // SystemMessage removed
+const { HumanMessage, AIMessage } = require('@langchain/core/messages');
 const Emergency = require('../models/Emergency');
 const Patient = require('../models/Patient');
 const Hospital = require('../models/Hospital');
 
-// ==========================================
-// 1. GEMMA CONFIGURATION
-// ==========================================
 const chatModel = new ChatGoogleGenerativeAI({
   model: "gemma-3-27b-it", 
-  maxOutputTokens: 400, // Safe limit for your 15k TPM quota
-  temperature: 0.1, 
-  apiKey: process.env.GOOGLE_API_KEY
+  maxOutputTokens: 600, // Increased slightly to allow for markdown + 4 actions
+  temperature: 0.2, // Slightly higher for better conversational markdown
+  apiKey: process.env.GOOGLE_API_KEY,
+  streaming: true // We are bringing streaming back!
 });
 
 exports.handlePatientChat = async (req, res) => {
@@ -21,9 +19,10 @@ exports.handlePatientChat = async (req, res) => {
     if (!patient) return res.status(404).json({ error: "Patient not found" });
 
     const selectedLanguage = language || 'English';
+    const io = req.app.get('socketio');
 
     // ==========================================
-    // 2. PROMPT RULES
+    // 1. UPDATED PROMPT: Markdown + Exactly 4 Actions
     // ==========================================
     const systemPrompt = `
       You are MedAssist, an emergency medical triage AI. The patient is speaking in: ${selectedLanguage}.
@@ -32,70 +31,83 @@ exports.handlePatientChat = async (req, res) => {
       If symptoms match exactly ONE of these severe conditions: ['Heart Attack', 'Stroke', 'Cardiac Arrest', 'Severe Asthma Attack', 'Severe External Bleeding', 'Brain Hemorrhage', 'Seizure', 'Snake Bite'].
       1. Set "severity" to "CRITICAL".
       2. Set "disease" to the exact English term from the list above.
-      3. Your "reply" must be: "I am alerting the nearest hospital. Help is on the way." (Translated to ${selectedLanguage}). Do NOT tell them to call 911.
+      3. Your "immediate_actions" array MUST contain EXACTLY 4 highly specific, actionable first-aid steps.
 
       NON-DISPATCH ADVICE RULES:
-      If symptoms are NOT severe or do NOT fall on the critical list (e.g., 'Feeling Cold', 'Slight Headache', 'Stomach ache'):
-      1. Set "severity" to "NON_CRITICAL".
-      2. Set "disease" to "None".
-      3. Your "reply" MUST provide detailed general medical advice in ${selectedLanguage}. Tell them why it might be happening, comfort steps, and when to see a doctor. Do NOT say you are allocating a hospital.
+      If symptoms are NOT severe (e.g., 'Feeling Cold', 'Slight Headache'):
+      1. Set "severity" to "NON_CRITICAL" and "disease" to "None".
+      2. Your conversational reply MUST provide detailed general medical advice.
 
-      OUTPUT ONLY VALID JSON. Do not use markdown blocks like \`\`\`json.
+      OUTPUT FORMAT:
+      1. First, output your empathetic conversational response. You MUST use Markdown (bolding, lists) to make it highly readable. Do not say you are calling 911.
+      2. Immediately after your response, output EXACTLY this delimiter: [[|JSON_DATA|]]
+      3. Immediately after the delimiter, output the JSON block. Do not use \`\`\`json markdown blocks.
+
       FORMAT:
+      Your markdown conversational response goes here.
+      [[|JSON_DATA|]]
       {
-        "reply": "Your empathetic response or advice",
         "severity": "CRITICAL" | "NON_CRITICAL",
         "disease": "Exact English term or 'None'",
-        "immediate_actions": ["Action 1", "Action 2"]
+        "immediate_actions": ["Action 1", "Action 2", "Action 3", "Action 4"]
       }
     `;
 
-    // ==========================================
-    // 3. HISTORY TRIM
-    // ==========================================
+    // History trimming (Max 4 messages)
     let trimmedHistory = [];
     if (history && history.length > 0) {
       trimmedHistory = history.slice(-4); 
     }
 
-    // ==========================================
-    // 4. THE FIX: Combine Rules + Patient Message
-    // Gemma doesn't support SystemMessage, so we pass the rules inside the final HumanMessage
-    // ==========================================
     const messages = [];
-    
-    // Add the trimmed history first
-    trimmedHistory.forEach(msg => {
-      messages.push(msg.role === 'user' ? new HumanMessage(msg.content) : new AIMessage(msg.content));
-    });
+    trimmedHistory.forEach(msg => messages.push(msg.role === 'user' ? new HumanMessage(msg.content) : new AIMessage(msg.content)));
 
-    // Inject the system prompt and the user's new message into a single HumanMessage
     const combinedFinalMessage = `
---- SYSTEM INSTRUCTIONS FOR MEDASSIST AI ---
+--- SYSTEM INSTRUCTIONS ---
 ${systemPrompt}
 
---- CURRENT PATIENT MESSAGE ---
+--- PATIENT MESSAGE ---
 ${message}
     `;
-    
     messages.push(new HumanMessage(combinedFinalMessage));
 
-    // Wait for the AI response
-    const response = await chatModel.invoke(messages);
-    
+    // ==========================================
+    // 2. STREAMING LOGIC
+    // ==========================================
+    const stream = await chatModel.stream(messages);
+    let fullResponse = "";
+    let userReplyText = "";
+    let isDelimiterHit = false;
+
+    for await (const chunk of stream) {
+      const token = chunk.content;
+      fullResponse += token;
+
+      if (!isDelimiterHit) {
+        if (fullResponse.includes('[[|JSON_DATA|]]')) {
+          isDelimiterHit = true;
+          userReplyText = fullResponse.split('[[|JSON_DATA|]]')[0].trim();
+        } else {
+          // Stream tokens directly to the patient's frontend!
+          if (token && !fullResponse.includes('[[')) {
+            io.to(patientId.toString()).emit('stream_token', { token });
+          }
+        }
+      }
+    }
+
+    // ==========================================
+    // 3. PARSE JSON & DATABASE UPDATE
+    // ==========================================
     let aiData;
     try {
-      let cleanText = response.content.replace(/```json/gi, '').replace(/```/gi, '').trim();
-      const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
-      aiData = JSON.parse(jsonMatch[0]);
+      const jsonString = fullResponse.split('[[|JSON_DATA|]]')[1].trim();
+      const cleanText = jsonString.replace(/```json/gi, '').replace(/```/gi, '').trim();
+      aiData = JSON.parse(cleanText);
     } catch (parseError) {
-      console.error("AI Parse Error:", response.content);
-      aiData = { 
-        reply: "Help is on the way. Please stay calm while I connect you to the nearest hospital.", 
-        severity: "CRITICAL", 
-        disease: "Other", 
-        immediate_actions: ["Sit down and rest"] 
-      };
+      console.error("AI Parse Error:", fullResponse);
+      userReplyText = userReplyText || "Help is on the way. Please stay calm while I connect you.";
+      aiData = { severity: "CRITICAL", disease: "Other", immediate_actions: ["Sit down", "Stay calm", "Take deep breaths", "Unlock doors"] };
     }
 
     let isEmergencyDispatched = false;
@@ -108,12 +120,7 @@ ${message}
       
       const availableHospital = await Hospital.findOne({
         availableAmbulances: { $gt: 0 },
-        specialties: { 
-          $elemMatch: { 
-            disease: predictedDisease, 
-            isAvailable: true 
-          } 
-        }
+        specialties: { $elemMatch: { disease: predictedDisease, isAvailable: true } }
       });
 
       let hospitalIdToAssign = null;
@@ -121,7 +128,6 @@ ${message}
         hospitalIdToAssign = availableHospital._id;
         assignedHospitalName = availableHospital.name;
         isAmbulanceAssigned = true;
-        
         availableHospital.availableAmbulances -= 1;
         await availableHospital.save();
       }
@@ -137,7 +143,6 @@ ${message}
       });
 
       if (isAmbulanceAssigned) {
-        const io = req.app.get('socketio');
         io.to(hospitalIdToAssign.toString()).emit('new_emergency', {
           id: newEmergency._id,
           patientMobile: patient.mobileNumber,
@@ -149,12 +154,13 @@ ${message}
       }
     }
 
+    // Resolve the frontend API await with the finalized data
     res.json({
-      reply: aiData.reply,
+      reply: userReplyText, // The clean markdown string
       isEmergencyDispatched,
       isAmbulanceAssigned,
       disease: aiData.disease,
-      immediate_actions: aiData.immediate_actions || [],
+      immediate_actions: aiData.immediate_actions || [], // Will now contain 4 points
       hospitalName: assignedHospitalName,
       severity: aiData.severity
     });
